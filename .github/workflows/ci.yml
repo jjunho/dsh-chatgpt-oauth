@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    name: Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22.x', '24.x']
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Check JavaScript syntax
+        run: pnpm run check
+      - name: Run tests
+        run: pnpm test
+      - name: Validate package boundary
+        run: pnpm pack:check
+      - name: Scan for credential prefixes
+        run: >-
+          if git grep -n -I -E '(^|[^[:alnum:]_])(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{20,})'
+          -- . ':!pnpm-lock.yaml'; then
+            echo 'Potential credential detected.' >&2
+            exit 1
+          fi
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high
