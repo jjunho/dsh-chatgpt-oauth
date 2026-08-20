@@ -31,7 +31,7 @@
   },
   "packageManager": "pnpm@11.10.0",
   "scripts": {
-    "check": "node --check index.js && node --check credentials.js && node --check bin/login.mjs",
+    "check": "node --check index.js && node --check credentials.js && node --check bin/login.mjs && node --check bin/browser-flow.mjs",
     "test": "node --test",
     "pack:check": "node scripts/check-pack.mjs"
   },

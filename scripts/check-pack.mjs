@@ -16,7 +16,7 @@ let report;
 try { report = JSON.parse(result.stdout); } catch (error) { console.error('pnpm pack --dry-run --json did not return valid JSON:', error.message); process.exit(1); }
 
 const files = Array.isArray(report.files) ? report.files.map((entry) => entry?.path) : [];
-const required = new Set(['index.js', 'credentials.js', 'bin/login.mjs', 'bin/token-response.mjs', 'README.md', 'LICENSE', 'package.json', 'cordis.patch.yml']);
+const required = new Set(['index.js', 'credentials.js', 'bin/login.mjs', 'bin/browser-flow.mjs', 'bin/token-response.mjs', 'README.md', 'LICENSE', 'package.json', 'cordis.patch.yml']);
 const actual = new Set(files);
 const missing = [...required].filter((path) => !actual.has(path));
 const unexpected = files.filter((path) => typeof path !== 'string' || !required.has(path));

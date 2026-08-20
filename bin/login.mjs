@@ -10,54 +10,24 @@
 //   dsh-chatgpt-login            # browser login (default)
 //   dsh-chatgpt-login --device   # device-code login (headless)
 //   dsh-chatgpt-login --logout   # remove the stored credential
-import { randomBytes, createHash } from 'node:crypto'
-import { createServer } from 'node:http'
-import { spawn } from 'node:child_process'
+import { browserLogin } from './browser-flow.mjs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { chmod, mkdir, rename, writeFile } from 'node:fs/promises'
-import { validateTokenResponse, validateCallback, validateDeviceAuthorization, validateDeviceToken } from './token-response.mjs'
+import { validateTokenResponse, validateDeviceAuthorization, validateDeviceToken } from './token-response.mjs'
 
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const AUTH_BASE_URL = 'https://auth.openai.com'
-const AUTHORIZE_URL = AUTH_BASE_URL + '/oauth/authorize'
 const TOKEN_URL = AUTH_BASE_URL + '/oauth/token'
-const REDIRECT_URI = 'http://localhost:1455/auth/callback'
 const DEVICE_USER_CODE_URL = AUTH_BASE_URL + '/api/accounts/deviceauth/usercode'
 const DEVICE_TOKEN_URL = AUTH_BASE_URL + '/api/accounts/deviceauth/token'
 const DEVICE_VERIFICATION_URI = AUTH_BASE_URL + '/codex/device'
 const DEVICE_REDIRECT_URI = AUTH_BASE_URL + '/deviceauth/callback'
-const SCOPE = 'openid profile email offline_access'
 const JWT_CLAIM_PATH = 'https://api.openai.com/auth'
 
 function credentialPath() {
   const home = (process.env.DSH_HOME ?? '').trim() || join(homedir(), '.dsh')
   return join(home, 'chatgpt-oauth.json')
-}
-
-function base64url(buf) {
-  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-async function generatePKCE() {
-  const verifier = base64url(randomBytes(32))
-  const challenge = base64url(createHash('sha256').update(verifier).digest())
-  return { verifier, challenge }
-}
-
-function createState() {
-  return randomBytes(16).toString('hex')
-}
-
-function openBrowser(url) {
-  const command = process.platform === 'darwin'
-    ? { cmd: 'open', args: [url] }
-    : process.platform === 'win32'
-      ? { cmd: 'cmd', args: ['/c', 'start', '', url] }
-      : { cmd: 'xdg-open', args: [url] }
-  const child = spawn(command.cmd, command.args, { stdio: 'ignore', detached: true })
-  child.on('error', () => {})
-  child.unref()
 }
 
 function decodeJwt(token) {
@@ -121,53 +91,6 @@ async function writeCredential(credential) {
   await chmod(path, 0o600)
 }
 
-// ---- browser flow ----
-async function browserLogin() {
-  const { verifier, challenge } = await generatePKCE()
-  const state = createState()
-  const url = new URL(AUTHORIZE_URL)
-  url.searchParams.set('response_type', 'code')
-  url.searchParams.set('client_id', CLIENT_ID)
-  url.searchParams.set('redirect_uri', REDIRECT_URI)
-  url.searchParams.set('scope', SCOPE)
-  url.searchParams.set('code_challenge', challenge)
-  url.searchParams.set('code_challenge_method', 'S256')
-  url.searchParams.set('state', state)
-  url.searchParams.set('id_token_add_organizations', 'true')
-  url.searchParams.set('codex_cli_simplified_flow', 'true')
-  url.searchParams.set('originator', 'pi')
-
-  // The registered URI uses localhost; bind the listener to loopback before opening the browser.
-  const code = await new Promise((resolve, reject) => {
-    const server = createServer((req, res) => {
-      const reqUrl = new URL(req.url ?? '', 'http://localhost')
-      const respond = (status, body) => {
-        res.statusCode = status
-        res.setHeader('Content-Type', 'text/html; charset=utf-8')
-        res.end(body)
-      }
-      if (reqUrl.pathname !== '/auth/callback') {
-        respond(404, '<h1>Not found</h1>')
-        return
-      }
-      let codeValue
-      try {
-        codeValue = validateCallback({ state: reqUrl.searchParams.get('state'), code: reqUrl.searchParams.get('code') }, state)
-      } catch (error) {
-        respond(400, '<h1>' + (error.message.includes('state') ? 'State mismatch' : 'Missing authorization code') + '</h1>')
-        return
-      }
-      respond(200, '<h1>OpenAI authentication completed. You can close this window.</h1>')
-      server.close()
-      resolve(codeValue)
-    })
-    server.on('error', (error) => reject(error))
-    server.listen(1455, '127.0.0.1', () => {})
-  })
-
-  return exchangeAuthorizationCode(code, verifier, REDIRECT_URI)
-}
-
 // ---- device-code flow ----
 async function deviceLogin() {
   const startResponse = await fetch(DEVICE_USER_CODE_URL, {
@@ -228,7 +151,7 @@ async function main() {
     return
   }
   try {
-    const credential = args.includes('--device') ? await deviceLogin() : await browserLogin()
+    const credential = args.includes('--device') ? await deviceLogin() : await browserLogin({ exchangeAuthorizationCode })
     await writeCredential(credential)
     console.log('Signed in to ChatGPT (Codex). Account: ' + (credential.accountId ?? 'unknown'))
     console.log('Token expires: ' + new Date(credential.expires).toISOString())
