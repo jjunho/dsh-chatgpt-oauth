@@ -33,7 +33,7 @@
   "scripts": {
     "check": "node --check index.js && node --check credentials.js && node --check bin/login.mjs",
     "test": "node --test",
-    "pack:check": "pnpm pack --dry-run"
+    "pack:check": "node scripts/check-pack.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1",

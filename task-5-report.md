@@ -2,127 +2,33 @@
 
 ## Result
 
-Implemented reproducible CI and supply-chain checks for the standalone package. The initial lockfile command hit the environment's pnpm database-file failure; the required workaround was used:
+Hardened the standalone OSS release gates. The package boundary is now checked from pnpm's JSON dry-run output, secret scanning fails closed, and production auditing is separate from the informational development audit.
 
-    pnpm install --lockfile-only
-    [ERROR] unable to open database file
-    For help, run: pnpm help install
+## Changes
 
-    pnpm install --lockfile-only --store-dir .pnpm-store
-    Done in 2.8s using pnpm v11.10.0
+- Added `scripts/check-pack.mjs`; it runs `pnpm pack --dry-run --json` with the project-local store when no store is configured, requires exactly the eight published files, and rejects tests, Git metadata, credential files, reports, and development metadata.
+- Changed `package.json` `pack:check` to run the checker.
+- CI scans all tracked files, including `pnpm-lock.yaml`. Git grep status 1 means no match; status 0 (match) and every fatal status fail the step.
+- CI blocks on `pnpm audit --prod --audit-level=high`; the full development graph audit runs separately as informational.
+- Kept exactly one standalone lockfile, one CI workflow, one dependency-review workflow, one Dependabot file, and no duplicate dependency-review files.
 
-The generated lockfile has one importer and 105 package entries; it is not the DSH monorepo lockfile. .pnpm-store/ remains ignored by .gitignore.
+## Checks
 
-## Files
+- `PNPM_CONFIG_STORE_DIR=.pnpm-store pnpm install --frozen-lockfile --ignore-scripts --ignore-workspace` — passed.
+- `PNPM_CONFIG_STORE_DIR=.pnpm-store pnpm run check` — passed.
+- `PNPM_CONFIG_STORE_DIR=.pnpm-store pnpm test` — passed: 14/14.
+- `PNPM_CONFIG_STORE_DIR=.pnpm-store pnpm pack:check` — passed: exactly 8 files.
+- Secret scan over all tracked files — passed with no matches; `pnpm-lock.yaml` was included.
+- `PNPM_CONFIG_STORE_DIR=.pnpm-store pnpm audit --prod --audit-level=high --ignore-workspace` — passed: no known vulnerabilities.
+- Full development audit — informational. The enclosing DSH development graph reports 15 high advisories (including brace-expansion, js-yaml, fast-uri, undici, ip-address, nanoid, and postcss). They are transitive development/test/tooling dependencies and are not production dependencies or packed runtime files, so they do not weaken the production gate. The standalone package-only audit currently reports no known vulnerabilities.
+- Python PyYAML validation of both workflows and Dependabot — passed.
+- `git diff --check` — passed.
 
-- .github/workflows/ci.yml
-- .github/workflows/dependency-review.yml
-- .github/dependabot.yml
-- pnpm-lock.yaml
-- task-5-report.md
+## Commit
 
-## Checks and exact output
-
-### Frozen install
-
-Command:
-
-    pnpm install --frozen-lockfile --ignore-scripts --ignore-workspace --store-dir .pnpm-store
-
-Output:
-
-    Lockfile is up to date, resolution step is skipped
-    ✓ Lockfile passes supply-chain policies (105 entries in 1.2s)
-    Done in 1.6s using pnpm v11.10.0
-
-### Syntax
-
-Command:
-
-    pnpm_config_store_dir=.pnpm-store pnpm run check
-
-Output ending:
-
-    $ node --check index.js && node --check credentials.js && node --check bin/login.mjs
-    [exit code: 0]
-
-### Tests
-
-Command:
-
-    pnpm_config_store_dir=.pnpm-store pnpm test
-
-Output:
-
-    ℹ tests 14
-    ℹ pass 14
-    ℹ fail 0
-    ℹ skipped 0
-    [exit code: 0]
-
-### Package dry-run
-
-Command:
-
-    pnpm_config_store_dir=.pnpm-store pnpm pack --dry-run
-
-Output:
-
-    package: dsh-chatgpt-oauth@0.1.0
-    Tarball Contents
-    bin/login.mjs
-    bin/token-response.mjs
-    cordis.patch.yml
-    credentials.js
-    index.js
-    LICENSE
-    package.json
-    README.md
-    Tarball Details
-    dsh-chatgpt-oauth-0.1.0.tgz
-    [exit code: 0]
-
-This confirms runtime files, README, and license are included while test/, .git/, credentials, and development metadata are absent.
-
-### Secret scan
-
-Command:
-
-    git grep -n -I -E '(^|[^[:alnum:]_])(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{20,})' -- . ':!pnpm-lock.yaml'
-
-Output:
-
-    No credential prefixes found.
-    [exit code: 0]
-
-### Workflow YAML and structure
-
-Commands:
-
-    python3 -c "import yaml; [yaml.safe_load(open(f)) for f in ['.github/workflows/ci.yml','.github/workflows/dependency-review.yml','.github/dependabot.yml']]; print('valid YAML')"
-    python3 -c "...assert all(Path(f).is_file() ...); ...; print('workflow structure valid')"
-
-Output:
-
-    valid YAML
-    workflow structure valid
-    [exit code: 0]
-
-### Audit
-
-Command:
-
-    pnpm_config_store_dir=.pnpm-store pnpm audit --audit-level=high
-
-Output summary:
-
-    38 vulnerabilities found
-    Severity: 3 low | 20 moderate | 15 high
-    [exit code: 1]
+Pending commit: `ci: harden OSS release gates`.
 
 ## Concerns
 
-- pnpm audit --audit-level=high currently fails because the resolved dependency graph contains 15 high-severity advisories, including transitive vite, js-yaml, fast-uri, brace-expansion, undici, ip-address, nanoid, and postcss findings. CI intentionally keeps this gate failing until dependencies are upgraded or advisories are otherwise resolved.
-- In this checkout, pnpm discovers the enclosing DSH workspace for commands such as pnpm run; the standalone lockfile was generated with --ignore-workspace, and the package-only frozen install succeeded. A clean GitHub checkout is not nested under the monorepo.
-- The default pnpm store produced unable to open database file; .pnpm-store is ignored and is the documented local workaround.
-- Ruby was unavailable for YAML validation; Python PyYAML validation succeeded.
+- Running pnpm from this nested worktree can discover the enclosing DSH workspace; local package-only checks therefore use `--ignore-workspace` where supported and the project-local store. A clean GitHub checkout is not nested under that workspace.
+- The development audit remains informational by design; its 15 high advisories should be tracked and upgraded separately.
