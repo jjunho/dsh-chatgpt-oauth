@@ -41,16 +41,22 @@ async function temporaryHome(t) {
 }
 
 async function consumeStream(adapter) {
-  for await (const _chunk of adapter.stream({
-    provider: 'openai-codex',
-    model: 'gpt-5.5',
-    messages: [],
-  })) {}
+  const chunks = []
+  try {
+    for await (const chunk of adapter.stream({
+      provider: 'openai-codex',
+      model: 'gpt-5.5',
+      messages: [],
+    })) chunks.push(chunk)
+  } catch (error) {
+    return { chunks, error }
+  }
+  return { chunks, error: undefined }
 }
 
 test('missing credential fails before network access', async (t) => {
   await temporaryHome(t)
-  const adapter = createContext()
+  const { adapter } = createContext()
   const originalFetch = globalThis.fetch
   let fetchCalled = false
   globalThis.fetch = async () => {
@@ -59,16 +65,24 @@ test('missing credential fails before network access', async (t) => {
   }
   t.after(() => { globalThis.fetch = originalFetch })
 
-  await assert.rejects(consumeStream(adapter), error => {
-    assert.equal(error.code, 'MISSING_CREDENTIAL')
-    return true
-  })
+  const result = await consumeStream(adapter)
+  const terminal = result.chunks.at(-1)
+  if (terminal === undefined) assert.equal(result.error?.failure.code, 'MISSING_CREDENTIAL')
+  else {
+    assert.equal(terminal.type, 'finish')
+    assert.equal(terminal.reason.kind, 'error')
+    assert.equal(terminal.reason.failure.code, 'MISSING_CREDENTIAL')
+  }
   assert.equal(fetchCalled, false)
 })
 
 test('valid credential reaches the provider without exposing the token', async (t) => {
   await temporaryHome(t)
-  const access = 'synthetic-chatgpt-access-token'
+  const access = [
+    'synthetic-header',
+    Buffer.from(JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: 'synthetic-account' } })).toString('base64url'),
+    'synthetic-signature',
+  ].join('.')
   await writeCredential({ access, refresh: 'synthetic-refresh-token', expires: Date.now() + 60_000 })
   const { adapter, logs } = createContext()
   const stdout = []
@@ -89,10 +103,13 @@ test('valid credential reaches the provider without exposing the token', async (
     process.stderr.write = originalStderrWrite
   })
 
-  await assert.rejects(consumeStream(adapter), error => {
-    assert.notEqual(error.code, 'MISSING_CREDENTIAL')
-    return true
-  })
+  const result = await consumeStream(adapter)
+  const terminal = result.chunks.at(-1)
+  if (terminal !== undefined) {
+    assert.equal(terminal.type, 'finish')
+    assert.equal(terminal.reason.kind, 'error')
+    assert.notEqual(terminal.reason.failure.code, 'MISSING_CREDENTIAL')
+  } else assert.notEqual(result.error?.code, 'MISSING_CREDENTIAL')
   assert.equal(observedAuthorization, 'Bearer ' + access)
   assert.equal(logs.some(value => value.includes(access)), false)
   assert.equal(stdout.join('').includes(access), false)

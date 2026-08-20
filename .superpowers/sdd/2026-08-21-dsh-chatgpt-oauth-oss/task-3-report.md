@@ -22,7 +22,7 @@ DONE_WITH_CONCERNS
 
 ## Commit
 
-- `d63842d test: cover plugin metadata and authentication`.
+- `e6fdc9e test: verify authentication logging`.
 
 ## Commands and outputs
 
@@ -38,6 +38,6 @@ The two new public-boundary tests require the exact devDependencies declared in 
 
 ## Fix round
 
-- Corrected the implementation commit reference to `d63842d`.
-- Added explicit assertions that the synthetic access token is absent from captured logger, stdout, and stderr output.
-- Fix-round verification used a temporary ignored `node_modules` symlink; the 11-test focused suite passed, while the two new adapter tests failed against the installed adapter dependency before the new logging assertions (missing credential error code and expected provider rejection). Syntax and diff checks passed.
+- Corrected the implementation commit reference to actual HEAD `e6fdc9e`.
+- Updated adapter authentication tests to consume terminal finish chunks, verify `MISSING_CREDENTIAL` and no fetch for missing credentials, verify the synthetic JWT reaches the stubbed provider as a Bearer token, and verify token absence from logger/stdout/stderr captures.
+- Fix-round verification used a temporary ignored `node_modules` symlink, removed after testing: focused metadata/auth tests passed (3/3), full plugin suite passed (14/14), syntax checks and `git diff --check` passed. No live OAuth or network calls were used.
