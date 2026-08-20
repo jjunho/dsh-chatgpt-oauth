@@ -22,7 +22,7 @@ DONE_WITH_CONCERNS
 
 ## Commit
 
-- `e6fdc9e test: verify authentication logging`.
+- `c737ee8 test: align adapter stream assertions`.
 
 ## Commands and outputs
 
@@ -41,3 +41,7 @@ The two new public-boundary tests require the exact devDependencies declared in 
 - Corrected the implementation commit reference to actual HEAD `e6fdc9e`.
 - Updated adapter authentication tests to consume terminal finish chunks, verify `MISSING_CREDENTIAL` and no fetch for missing credentials, verify the synthetic JWT reaches the stubbed provider as a Bearer token, and verify token absence from logger/stdout/stderr captures.
 - Fix-round verification used a temporary ignored `node_modules` symlink, removed after testing: focused metadata/auth tests passed (3/3), full plugin suite passed (14/14), syntax checks and `git diff --check` passed. No live OAuth or network calls were used.
+
+## Fix-round note
+
+- Fix round completed in `c737ee8`; this commit is the current provenance for the adapter stream assertion fix.
