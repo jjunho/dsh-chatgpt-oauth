@@ -22,7 +22,7 @@ DONE_WITH_CONCERNS
 
 ## Commit
 
-- `4ddedd8 test: cover plugin metadata and authentication`.
+- `d63842d test: cover plugin metadata and authentication`.
 
 ## Commands and outputs
 
@@ -35,3 +35,9 @@ DONE_WITH_CONCERNS
 ## Concerns
 
 The two new public-boundary tests require the exact devDependencies declared in `package.json`; installation was unavailable in this isolated worktree, so their runtime assertions could not be executed locally. The requested pnpm commands were also blocked before test execution by pnpm's unavailable database file. No lockfile was present in the worktree, so none was created; lockfile publication remains outside Task 3 scope.
+
+## Fix round
+
+- Corrected the implementation commit reference to `d63842d`.
+- Added explicit assertions that the synthetic access token is absent from captured logger, stdout, and stderr output.
+- Fix-round verification used a temporary ignored `node_modules` symlink; the 11-test focused suite passed, while the two new adapter tests failed against the installed adapter dependency before the new logging assertions (missing credential error code and expected provider rejection). Syntax and diff checks passed.

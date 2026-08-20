@@ -8,6 +8,11 @@ import { writeCredential } from '../credentials.js'
 
 function createContext() {
   let adapter
+  const logs = []
+  const logger = Object.fromEntries(['debug', 'info', 'log', 'warn', 'error'].map(level => [
+    level,
+    (...values) => logs.push(values.map(String).join(' ')),
+  ]))
   const ctx = {
     llm: {
       registerAdapter(_providers, registered) {
@@ -16,11 +21,12 @@ function createContext() {
       },
       registerConfigurableProviders() {},
     },
+    logger,
     get() { return undefined },
   }
   apply(ctx)
   assert.ok(adapter)
-  return adapter
+  return { adapter, logs }
 }
 
 async function temporaryHome(t) {
@@ -64,18 +70,31 @@ test('valid credential reaches the provider without exposing the token', async (
   await temporaryHome(t)
   const access = 'synthetic-chatgpt-access-token'
   await writeCredential({ access, refresh: 'synthetic-refresh-token', expires: Date.now() + 60_000 })
-  const adapter = createContext()
+  const { adapter, logs } = createContext()
+  const stdout = []
+  const stderr = []
+  const originalStdoutWrite = process.stdout.write
+  const originalStderrWrite = process.stderr.write
+  process.stdout.write = (chunk) => { stdout.push(String(chunk)); return true }
+  process.stderr.write = (chunk) => { stderr.push(String(chunk)); return true }
   const originalFetch = globalThis.fetch
   let observedAuthorization
   globalThis.fetch = async (_url, init) => {
     observedAuthorization = new Headers(init?.headers).get('authorization')
     throw new Error('stubbed provider request')
   }
-  t.after(() => { globalThis.fetch = originalFetch })
+  t.after(() => {
+    globalThis.fetch = originalFetch
+    process.stdout.write = originalStdoutWrite
+    process.stderr.write = originalStderrWrite
+  })
 
   await assert.rejects(consumeStream(adapter), error => {
     assert.notEqual(error.code, 'MISSING_CREDENTIAL')
     return true
   })
   assert.equal(observedAuthorization, 'Bearer ' + access)
+  assert.equal(logs.some(value => value.includes(access)), false)
+  assert.equal(stdout.join('').includes(access), false)
+  assert.equal(stderr.join('').includes(access), false)
 })
