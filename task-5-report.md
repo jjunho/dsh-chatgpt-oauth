@@ -26,7 +26,7 @@ Hardened the standalone OSS release gates. The package boundary is now checked f
 
 ## Commit
 
-Pending commit: `ci: harden OSS release gates`.
+Commit: `75eca6c829648adf54e1b70f63fdb90e89d341a7 ci: harden OSS release gates`.
 
 ## Concerns
 
