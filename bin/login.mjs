@@ -16,6 +16,7 @@ import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { chmod, mkdir, rename, writeFile } from 'node:fs/promises'
+import { validateTokenResponse } from './token-response.mjs'
 
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const AUTH_BASE_URL = 'https://auth.openai.com'
@@ -81,14 +82,15 @@ async function readTokenResponse(response, operation) {
     throw new Error('OpenAI Codex token ' + operation + ' failed (' + response.status + ')')
   }
   const json = await response.json()
-  if (!json?.access_token || !json.refresh_token || typeof json.expires_in !== 'number' || !Number.isFinite(json.expires_in) || json.expires_in <= 0) {
+  let credential
+  try {
+    credential = validateTokenResponse(json)
+  } catch {
     throw new Error('OpenAI Codex token ' + operation + ' response missing required fields')
   }
   return {
-    access: json.access_token,
-    refresh: json.refresh_token,
-    expires: Date.now() + json.expires_in * 1000,
-    accountId: accountIdFromToken(json.access_token),
+    ...credential,
+    accountId: accountIdFromToken(credential.access),
   }
 }
 
@@ -113,6 +115,7 @@ async function writeCredential(credential) {
   await mkdir(parent, { recursive: true })
   const tmp = path + '.tmp'
   await writeFile(tmp, JSON.stringify(credential, null, 2) + '\n', { mode: 0o600 })
+  await chmod(tmp, 0o600)
   await rename(tmp, path)
   await chmod(path, 0o600)
 }

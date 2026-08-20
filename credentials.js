@@ -60,6 +60,7 @@ export async function writeCredential(credential) {
   await mkdir(dirname(path), { recursive: true })
   const tmp = path + '.tmp'
   await writeFile(tmp, JSON.stringify(credential, null, 2) + '\n', { mode: 0o600 })
+  await chmod(tmp, 0o600)
   await rename(tmp, path)
   await chmod(path, 0o600)
 }

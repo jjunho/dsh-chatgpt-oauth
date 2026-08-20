@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -44,7 +44,10 @@ test('credential missing access, refresh, or finite expiry is rejected', async (
   for (const credential of [
     { refresh: 'refresh', expires: Date.now() + 1 },
     { access: 'access', expires: Date.now() + 1 },
+    { access: 42, refresh: 'refresh', expires: Date.now() + 1 },
+    { access: 'access', refresh: {}, expires: Date.now() + 1 },
     { access: 'access', refresh: 'refresh', expires: Number.NaN },
+    { access: 'access', refresh: 'refresh', expires: Number.POSITIVE_INFINITY },
     { access: 'access', refresh: 'refresh', expires: 0 },
   ]) {
     await writeFile(credentialPath(), JSON.stringify(credential), 'utf8')
@@ -54,4 +57,13 @@ test('credential missing access, refresh, or finite expiry is rejected', async (
       return true
     })
   }
+})
+
+test('pre-existing temporary credential file is chmodded before atomic rename', async (t) => {
+  await temporaryHome(t)
+  const tmpPath = credentialPath() + '.tmp'
+  await writeFile(tmpPath, 'stale', { mode: 0o644 })
+  await chmod(tmpPath, 0o644)
+  await writeCredential({ access: 'access', refresh: 'refresh', expires: Date.now() + 60_000 })
+  assert.equal((await stat(credentialPath())).mode & 0o777, 0o600)
 })
