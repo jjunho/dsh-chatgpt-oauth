@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { chmod, mkdir, rename, writeFile } from 'node:fs/promises'
-import { validateTokenResponse } from './token-response.mjs'
+import { validateTokenResponse, validateCallback, validateDeviceAuthorization, validateDeviceToken } from './token-response.mjs'
 
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const AUTH_BASE_URL = 'https://auth.openai.com'
@@ -112,7 +112,8 @@ async function exchangeAuthorizationCode(code, verifier, redirectUri) {
 async function writeCredential(credential) {
   const path = credentialPath()
   const parent = dirname(path)
-  await mkdir(parent, { recursive: true })
+  await mkdir(parent, { recursive: true, mode: 0o700 })
+  await chmod(parent, 0o700)
   const tmp = path + '.tmp'
   await writeFile(tmp, JSON.stringify(credential, null, 2) + '\n', { mode: 0o600 })
   await chmod(tmp, 0o600)
@@ -136,12 +137,7 @@ async function browserLogin() {
   url.searchParams.set('codex_cli_simplified_flow', 'true')
   url.searchParams.set('originator', 'pi')
 
-  console.log('A browser should open. Complete login at ChatGPT, then return here.')
-  openBrowser(url.toString())
-  console.log('If it does not open, visit:')
-  console.log('  ' + url.toString())
-  console.log()
-
+  // The registered URI uses localhost; bind the listener to loopback before opening the browser.
   const code = await new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const reqUrl = new URL(req.url ?? '', 'http://localhost')
@@ -154,13 +150,11 @@ async function browserLogin() {
         respond(404, '<h1>Not found</h1>')
         return
       }
-      if (reqUrl.searchParams.get('state') !== state) {
-        respond(400, '<h1>State mismatch</h1>')
-        return
-      }
-      const codeValue = reqUrl.searchParams.get('code')
-      if (!codeValue) {
-        respond(400, '<h1>Missing authorization code</h1>')
+      let codeValue
+      try {
+        codeValue = validateCallback({ state: reqUrl.searchParams.get('state'), code: reqUrl.searchParams.get('code') }, state)
+      } catch (error) {
+        respond(400, '<h1>' + (error.message.includes('state') ? 'State mismatch' : 'Missing authorization code') + '</h1>')
         return
       }
       respond(200, '<h1>OpenAI authentication completed. You can close this window.</h1>')
@@ -186,9 +180,7 @@ async function deviceLogin() {
     throw new Error('device code request failed (' + startResponse.status + ')')
   }
   const json = await startResponse.json()
-  if (!json?.device_auth_id || !json.user_code) {
-    throw new Error('Invalid device code response: missing required fields')
-  }
+  validateDeviceAuthorization(json)
   const requestedInterval = Number(json.interval)
   const intervalSeconds = Number.isFinite(requestedInterval) && requestedInterval > 0
     ? Math.min(requestedInterval, 60)
@@ -211,10 +203,8 @@ async function deviceLogin() {
     })
     if (tokenResponse.ok) {
       const tokenJson = await tokenResponse.json()
-      if (!tokenJson?.authorization_code || !tokenJson.code_verifier) {
-        throw new Error('Invalid device token response: missing required fields')
-      }
-      return exchangeAuthorizationCode(tokenJson.authorization_code, tokenJson.code_verifier, DEVICE_REDIRECT_URI)
+      const deviceToken = validateDeviceToken(tokenJson)
+      return exchangeAuthorizationCode(deviceToken.authorization_code, deviceToken.code_verifier, DEVICE_REDIRECT_URI)
     }
     if (tokenResponse.status === 403 || tokenResponse.status === 404) continue
     const body = await tokenResponse.text().catch(() => '')

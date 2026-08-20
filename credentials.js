@@ -41,8 +41,8 @@ export async function readCredential() {
 
 function validateCredential(credential) {
   if (credential === null || typeof credential !== 'object' ||
-      typeof credential.access !== 'string' || credential.access.length === 0 ||
-      typeof credential.refresh !== 'string' || credential.refresh.length === 0 ||
+      typeof credential.access !== 'string' || credential.access.trim().length === 0 ||
+      typeof credential.refresh !== 'string' || credential.refresh.trim().length === 0 ||
       typeof credential.expires !== 'number' || !Number.isFinite(credential.expires) || credential.expires <= 0 ||
       (credential.accountId !== undefined && typeof credential.accountId !== 'string')) {
     throw new Error('invalid ChatGPT OAuth credential document')
@@ -57,7 +57,9 @@ function validateCredential(credential) {
 export async function writeCredential(credential) {
   validateCredential(credential)
   const path = credentialPath()
-  await mkdir(dirname(path), { recursive: true })
+  const parent = dirname(path)
+  await mkdir(parent, { recursive: true, mode: 0o700 })
+  await chmod(parent, 0o700)
   const tmp = path + '.tmp'
   await writeFile(tmp, JSON.stringify(credential, null, 2) + '\n', { mode: 0o600 })
   await chmod(tmp, 0o600)

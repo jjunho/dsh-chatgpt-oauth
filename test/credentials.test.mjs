@@ -22,11 +22,12 @@ test('missing credential returns undefined', async (t) => {
 })
 
 test('write/read round trip preserves fields and mode 0600', async (t) => {
-  await temporaryHome(t)
+  const home = await temporaryHome(t)
   const credential = { access: 'access-token', refresh: 'refresh-token', expires: Date.now() + 60_000, accountId: 'account' }
   await writeCredential(credential)
   assert.deepEqual(await readCredential(), credential)
   assert.equal((await stat(credentialPath())).mode & 0o777, 0o600)
+  assert.equal((await stat(home)).mode & 0o777, 0o700)
 })
 
 test('malformed JSON is rejected without returning token-like content', async (t) => {

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { apply } from '../index.js'
-import { writeCredential } from '../credentials.js'
+import { readCredential, writeCredential } from '../credentials.js'
 
 function createContext() {
   let adapter
@@ -114,4 +114,38 @@ test('valid credential reaches the provider without exposing the token', async (
   assert.equal(logs.some(value => value.includes(access)), false)
   assert.equal(stdout.join('').includes(access), false)
   assert.equal(stderr.join('').includes(access), false)
+})
+
+test('expired credential refreshes, rotates persisted token, and maps failures to AUTH', async (t) => {
+  await temporaryHome(t)
+  await writeCredential({ access: 'expired-access', refresh: 'old-refresh', expires: Date.now() - 1 })
+  const { adapter } = createContext()
+  const originalFetch = globalThis.fetch
+  let refreshCalls = 0
+  const rotatedAccess = 'header.' + Buffer.from(JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: 'rotated-account' } })).toString('base64url') + '.signature'
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('auth.openai.com')) {
+      refreshCalls++
+      return new Response(JSON.stringify({ access_token: rotatedAccess, refresh_token: 'rotated-refresh', expires_in: 3600 }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    throw new Error('provider request stopped')
+  }
+  t.after(() => { globalThis.fetch = originalFetch })
+  await consumeStream(adapter)
+  assert.equal(refreshCalls, 1)
+  const rotated = await readCredential()
+  assert.equal(rotated.access, rotatedAccess)
+  assert.equal(rotated.refresh, 'rotated-refresh')
+
+  for (const response of [
+    new Response('{malformed', { status: 200 }),
+    new Response('', { status: 500 }),
+  ]) {
+    await writeCredential({ access: 'expired-access', refresh: 'old-refresh', expires: Date.now() - 1 })
+    globalThis.fetch = async () => response
+    const result = await consumeStream(adapter)
+    const terminal = result.chunks.at(-1)
+    const failure = terminal?.reason?.failure ?? result.error?.failure
+    assert.equal(failure.code, 'AUTH')
+  }
 })
