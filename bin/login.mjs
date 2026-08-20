@@ -14,9 +14,8 @@ import { randomBytes, createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { createInterface } from 'node:readline'
+import { dirname, join } from 'node:path'
+import { chmod, mkdir, rename, writeFile } from 'node:fs/promises'
 
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const AUTH_BASE_URL = 'https://auth.openai.com'
@@ -78,12 +77,12 @@ function accountIdFromToken(accessToken) {
 
 async function readTokenResponse(response, operation) {
   if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error('OpenAI Codex token ' + operation + ' failed (' + response.status + '): ' + (text || response.statusText))
+    await response.text().catch(() => '')
+    throw new Error('OpenAI Codex token ' + operation + ' failed (' + response.status + ')')
   }
   const json = await response.json()
-  if (!json?.access_token || !json.refresh_token || typeof json.expires_in !== 'number') {
-    throw new Error('OpenAI Codex token ' + operation + ' response missing fields: ' + JSON.stringify(json))
+  if (!json?.access_token || !json.refresh_token || typeof json.expires_in !== 'number' || !Number.isFinite(json.expires_in) || json.expires_in <= 0) {
+    throw new Error('OpenAI Codex token ' + operation + ' response missing required fields')
   }
   return {
     access: json.access_token,
@@ -110,11 +109,12 @@ async function exchangeAuthorizationCode(code, verifier, redirectUri) {
 
 async function writeCredential(credential) {
   const path = credentialPath()
-  const parent = path.slice(0, path.lastIndexOf('/'))
+  const parent = dirname(path)
   await mkdir(parent, { recursive: true })
   const tmp = path + '.tmp'
   await writeFile(tmp, JSON.stringify(credential, null, 2) + '\n', { mode: 0o600 })
   await rename(tmp, path)
+  await chmod(path, 0o600)
 }
 
 // ---- browser flow ----
@@ -179,21 +179,28 @@ async function deviceLogin() {
     body: JSON.stringify({ client_id: CLIENT_ID }),
   })
   if (!startResponse.ok) {
-    const body = await startResponse.text().catch(() => '')
-    throw new Error('device code request failed (' + startResponse.status + '): ' + body)
+    await startResponse.text().catch(() => '')
+    throw new Error('device code request failed (' + startResponse.status + ')')
   }
   const json = await startResponse.json()
   if (!json?.device_auth_id || !json.user_code) {
-    throw new Error('Invalid device code response: ' + JSON.stringify(json))
+    throw new Error('Invalid device code response: missing required fields')
   }
-  const intervalSeconds = Number(json.interval) || 5
+  const requestedInterval = Number(json.interval)
+  const intervalSeconds = Number.isFinite(requestedInterval) && requestedInterval > 0
+    ? Math.min(requestedInterval, 60)
+    : 5
   console.log('Open ' + DEVICE_VERIFICATION_URI + ' and enter the code:')
   console.log('  ' + json.user_code)
   console.log('(waiting for you to authorize...)')
   console.log()
 
+  const deadline = Date.now() + 15 * 60 * 1000
   for (;;) {
-    await new Promise(resolve => setTimeout(resolve, intervalSeconds * 1000))
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) throw new Error('device authorization timed out; try again')
+    await new Promise(resolve => setTimeout(resolve, Math.min(intervalSeconds * 1000, remaining)))
+    if (Date.now() >= deadline) throw new Error('device authorization timed out; try again')
     const tokenResponse = await fetch(DEVICE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -202,7 +209,7 @@ async function deviceLogin() {
     if (tokenResponse.ok) {
       const tokenJson = await tokenResponse.json()
       if (!tokenJson?.authorization_code || !tokenJson.code_verifier) {
-        throw new Error('Invalid device token response: ' + JSON.stringify(tokenJson))
+        throw new Error('Invalid device token response: missing required fields')
       }
       return exchangeAuthorizationCode(tokenJson.authorization_code, tokenJson.code_verifier, DEVICE_REDIRECT_URI)
     }
@@ -210,9 +217,10 @@ async function deviceLogin() {
     const body = await tokenResponse.text().catch(() => '')
     let errorCode
     try { errorCode = JSON.parse(body)?.error?.code } catch {}
+    if (typeof errorCode === 'string') errorCode = errorCode.slice(0, 64).replace(/[^a-zA-Z0-9_.-]/g, '')
     if (errorCode === 'deviceauth_authorization_pending') continue
     if (errorCode === 'slow_down') continue
-    throw new Error('device auth failed (' + tokenResponse.status + '): ' + body)
+    throw new Error('device auth failed (' + tokenResponse.status + (errorCode ? ', ' + errorCode : '') + ')')
   }
 }
 

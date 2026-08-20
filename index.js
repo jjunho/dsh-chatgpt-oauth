@@ -81,20 +81,26 @@ export function apply(ctx) {
   const profiles = () => new Map([[PROVIDER, profile]])
 
   const resolveApiKey = async () => {
-    const credential = await readCredential()
+    let credential
+    try {
+      credential = await readCredential()
+    } catch {
+      throw new LlmError('chatgpt-oauth: stored ChatGPT credential is invalid; sign in again', 'MISSING_CREDENTIAL')
+    }
     if (credential === undefined) {
       throw new LlmError(
         'chatgpt-oauth: not signed in to ChatGPT; run dsh-chatgpt-login in a terminal, then pick the "ChatGPT (Codex)" provider',
         'MISSING_CREDENTIAL',
       )
     }
-    if (typeof credential.access !== 'string' || credential.access.length === 0) {
-      throw new LlmError('chatgpt-oauth: stored ChatGPT credential has no access token', 'MISSING_CREDENTIAL')
-    }
     if (Date.now() < credential.expires) return credential.access
-    const refreshed = await oauth.refresh(credential)
-    await writeCredential(refreshed)
-    return refreshed.access
+    try {
+      const refreshed = await oauth.refresh(credential)
+      await writeCredential(refreshed)
+      return refreshed.access
+    } catch {
+      throw new LlmError('chatgpt-oauth: ChatGPT authentication expired; sign in again', 'AUTH')
+    }
   }
 
   const adapter = new PiAiAdapter({
