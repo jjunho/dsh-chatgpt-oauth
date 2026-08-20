@@ -1,0 +1,5 @@
+# dsh-chatgpt-oauth bundle patch: insert the ChatGPT (Codex) OAuth adapter
+# plugin over whatever profile already provides the llm service.
+- insert:
+    - id: chatgpt-oauth
+      name: '@deepseek-ai/dsh-chatgpt-oauth'

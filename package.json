@@ -1,0 +1,30 @@
+{
+  "name": "@deepseek-ai/dsh-chatgpt-oauth",
+  "version": "0.1.0",
+  "description": "ChatGPT (Codex) OAuth provider for DeepSeek Harness: sign in with your ChatGPT Plus/Pro subscription, no API key",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "credentials.js",
+    "bin/",
+    "cordis.patch.yml"
+  ],
+  "bin": {
+    "dsh-chatgpt-login": "bin/login.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-commands": "*",
+    "@deepseek-ai/dsh-home-paths": "*",
+    "@deepseek-ai/dsh-llm": "*",
+    "@deepseek-ai/dsh-llm-pi-ai": "*",
+    "@earendil-works/pi-ai": "*"
+  }
+}
