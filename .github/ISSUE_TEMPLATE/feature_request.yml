@@ -28,6 +28,15 @@ body:
     attributes:
       label: Provider and model
       placeholder: openai-codex / gpt-5.4
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove tokens, account identifiers, callback state, and personal data.
+    validations:
+      required: true
   - type: textarea
     id: alternatives
     attributes:

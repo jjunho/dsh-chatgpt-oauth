@@ -24,9 +24,9 @@ Restart the web profile after installation.
 
 ## Sign in
 
-    npx dsh-chatgpt-login
-    npx dsh-chatgpt-login --device
-    npx dsh-chatgpt-login --logout
+    dsh plugin --profile web exec dsh-chatgpt-login
+    dsh plugin --profile web exec dsh-chatgpt-login -- --device
+    dsh plugin --profile web exec dsh-chatgpt-login -- --logout
 
 The browser flow uses 127.0.0.1:1455. Credentials are stored at $DSH_HOME/chatgpt-oauth.json, or ~/.dsh/chatgpt-oauth.json when DSH_HOME is unset. The file is owner-readable only and refreshed credentials are saved automatically. Never share it.
 

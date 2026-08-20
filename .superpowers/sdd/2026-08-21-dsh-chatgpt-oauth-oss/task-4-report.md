@@ -19,3 +19,9 @@ Implemented public documentation and governance files. Existing docs/superpowers
 
 - ChatGPT OAuth, endpoint behavior, subscription access, and model availability are external OpenAI dependencies and may change.
 - GitHub private vulnerability reporting must be enabled on the remote repository separately.
+
+## Task 4 follow-up
+
+- Updated README sign-in commands to use the installed web-profile executor, including device and logout options.
+- Made the feature request provider/model field required and added a required sanitized-logs field.
+- Verification and commit details are reported by the task controller.
