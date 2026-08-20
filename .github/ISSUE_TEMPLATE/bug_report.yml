@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible problem with the plugin.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include OAuth credentials, tokens, authorization codes, callback state, or unredacted logs.
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: List the smallest steps that reproduce the problem.
+    validations:
+      required: true
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH version
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+    validations:
+      required: true
+  - type: input
+    id: provider-model
+    attributes:
+      label: Provider and model
+      placeholder: openai-codex / gpt-5.4
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove tokens, account identifiers, callback state, and personal data.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Tests and environment
+      description: Include commands, Node version, and operating system.
+    validations:
+      required: true
+  - type: checkboxes
+    id: credentials
+    attributes:
+      label: Credential confirmation
+      options:
+        - label: I confirm that this report contains no OAuth credential or other secret.
+          required: true

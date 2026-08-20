@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest an improvement to the plugin.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and proposed change
+      description: Explain the user problem and desired behavior.
+    validations:
+      required: true
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH version
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+    validations:
+      required: true
+  - type: input
+    id: provider-model
+    attributes:
+      label: Provider and model
+      placeholder: openai-codex / gpt-5.4
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: tests
+    attributes:
+      label: Tests or validation plan
+      description: Describe tests run or proposed.
+    validations:
+      required: true
+  - type: checkboxes
+    id: credentials
+    attributes:
+      label: Credential confirmation
+      options:
+        - label: I confirm that this request contains no OAuth credential or other secret.
+          required: true
