@@ -7,5 +7,6 @@ coverage/
 .dsh/
 *.tmp
 *.log
+*.tgz
 .DS_Store
 .worktrees/
