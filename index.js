@@ -113,9 +113,6 @@ export function apply(ctx) {
   })
 
   ctx.llm.registerAdapter([PROVIDER], adapter)
-  ctx.llm.registerConfigurableProviders([
-    { provider: PROVIDER, displayName: DISPLAY_NAME, settingsNs: 'chatgpt-oauth', settingsPath: [] },
-  ])
 
   const commands = ctx.get('commands')
   if (commands !== undefined) {
