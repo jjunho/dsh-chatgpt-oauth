@@ -58,7 +58,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/dsh-llm": "0.1.0-rc.7",
-    "@deepseek-ai/dsh-llm-pi-ai": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.1.0-rc.8",
     "@earendil-works/pi-ai": "0.84.2"
   },
   "peerDependencies": {
