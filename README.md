@@ -34,7 +34,7 @@ The browser flow uses 127.0.0.1:1455. Credentials are stored at $DSH_HOME/chatgp
 
 1. Select the ChatGPT (Codex) provider.
 2. Choose gpt-5.3-codex-spark, gpt-5.4, gpt-5.4-mini, gpt-5.5, gpt-5.6-luna, gpt-5.6-sol, or gpt-5.6-terra.
-3. Use /chatgpt for sign-in status and /chatgpt logout to clear the session.
+3. Use /chatgpt for sign-in status, /chatgpt logout to clear the session, and /chatgpt reinstall for recovery steps after a dsh update.
 
 For gpt-5.5 and gpt-5.6-*, this plugin reports local context metadata of 1_050_000 tokens. This affects the local context meter only and does not guarantee a universal model capability.
 
@@ -44,6 +44,26 @@ For gpt-5.5 and gpt-5.6-*, this plugin reports local context metadata of 1_050_0
 - Browser login fails: ensure port 1455 is available; use --device on a headless host.
 - Authentication expired: run dsh-chatgpt-login again, or use --logout before another account.
 - Model unavailable: check current account entitlements and the provider model list.
+
+## After a dsh update
+
+A DeepSeek Harness update can bump its bundled `@earendil-works/pi-ai` engine. This plugin rides pi-ai's `openai-codex` provider and its OAuth method, so such an update can break the OAuth route. To keep a single break from cascading, the plugin **degrades gracefully**: instead of crashing on load, it logs a warning and leaves `openai-codex` unregistered, so the other providers keep working.
+
+If "ChatGPT (Codex)" disappears from the model selector after an update:
+
+1. Run `/chatgpt reinstall` inside the harness to print the exact recovery steps.
+2. Re-link the plugin into the profile and restart:
+
+       cd ~/.dsh/profiles/web && pnpm install
+       dsh --profile web
+
+3. Sign in again if the token was invalidated:
+
+       dsh-chatgpt-login
+
+4. If pi-ai changed its OAuth API (for example, removed `auth.oauth` from the provider), update this plugin's source first — it lives at `~/x/dsh-chatgpt-oauth` (`index.js` / `package.json`) — then redo step 2 so the change is picked up.
+
+The plugin's `peerDependencies` range for `@earendil-works/pi-ai` is kept wide (`>=0.82.1`), so a minor engine bump does not fail installation on its own; only an actual API change requires editing the plugin.
 
 ## Limitations
 

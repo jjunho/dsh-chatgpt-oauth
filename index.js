@@ -37,14 +37,35 @@ const CONTEXT_WINDOW_OVERRIDES = new Map([
   ['gpt-5.6-terra', 1_050_000],
 ])
 
+// Self-service recovery guide, printed by `/chatgpt reinstall` and referenced
+// by the degraded-mode warnings. Kept here, in one place, so the guidance and
+// the failure modes it describes can't drift apart.
+const REINSTALL_GUIDE = [
+  'ChatGPT (Codex) OAuth — recovery after a dsh update:',
+  '  1. Re-link this plugin into the profile (fixes a stale node_modules copy):',
+  '       cd ~/.dsh/profiles/web && pnpm install',
+  '  2. Restart dsh:',
+  '       dsh --profile web',
+  '  3. Sign in again if the token was invalidated:',
+  '       dsh-chatgpt-login',
+  '  4. If pi-ai changed its OAuth API, update this plugin first — its source',
+  '     lives at ~/x/dsh-chatgpt-oauth (edit index.js / package.json), then',
+  '     redo step 1 so the change is picked up.',
+].join('\n')
+
 export function apply(ctx) {
   const catalog = builtinProviders().find(provider => provider.id === PROVIDER)
   if (catalog === undefined) {
-    throw new Error('chatgpt-oauth: the installed pi-ai engine ships no openai-codex provider')
+    // A pi-ai upgrade that drops the provider should disable this OAuth route,
+    // not fail the plugin mount (which would also mask the cause in a sea of
+    // plugin-load errors). Log once and leave `openai-codex` unregistered.
+    ctx.logger.warn('chatgpt-oauth: the installed pi-ai engine ships no "openai-codex" provider; ChatGPT (Codex) OAuth is unavailable — run /chatgpt reinstall for recovery steps')
+    return
   }
   const oauth = catalog.auth?.oauth
   if (oauth === undefined) {
-    throw new Error('chatgpt-oauth: the openai-codex provider has no OAuth auth method')
+    ctx.logger.warn('chatgpt-oauth: the "openai-codex" provider no longer exposes an OAuth method; ChatGPT (Codex) OAuth is unavailable — run /chatgpt reinstall for recovery steps')
+    return
   }
 
   const models = catalog.getModels().map(model => {
@@ -118,10 +139,13 @@ export function apply(ctx) {
   if (commands !== undefined) {
     commands.register({
       name: 'chatgpt',
-      description: 'show or clear your ChatGPT (Codex) OAuth login',
-      input: { hint: '[status|logout]' },
+      description: 'show or clear your ChatGPT (Codex) OAuth login, or print reinstall steps',
+      input: { hint: '[status|logout|reinstall]' },
       handler: async (invocation) => {
         const arg = (invocation.rawInput ?? '').trim().toLowerCase()
+        if (arg === 'reinstall' || arg === 'help' || arg === 'fix') {
+          return { kind: 'success', text: REINSTALL_GUIDE }
+        }
         if (arg === 'logout') {
           await deleteCredential()
           return { kind: 'success', text: 'ChatGPT session removed.' }
